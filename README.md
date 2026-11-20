@@ -4,6 +4,8 @@ A per-project todo checklist for [DeepSeek Harness](https://github.com/deepseek-
 
 [中文](README.zh.md)
 
+![The todo panel in the right sidebar](docs/preview-panel.png)
+
 Complex requests have many steps. This plugin keeps them in one place the team and the AI can both read:
 
 - create tasks, check them off (done tasks turn grey with a strikethrough), edit and delete them;
