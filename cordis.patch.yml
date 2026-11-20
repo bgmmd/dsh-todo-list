@@ -1,0 +1,10 @@
+- insert:
+    - id: dsh-todo-list
+      name: dsh-todo-list
+      config:
+        fileName: .todo.md
+        gitTrack: true
+        hintOnNewSession: true
+        maxItems: 200
+        maxItemLength: 500
+        sendPromptTemplate: ''

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Todo list",
+    "description": "Adds a todo checklist to the conversation's right sidebar. Create, check off, edit and delete tasks; finished tasks turn grey with a strikethrough. The list is stored as `.todo.md` in the session's project root and, inside a Git work tree, added to Git tracking so collaborators can see progress with each commit. A light entry on the blank-session screen suggests creating a list for complex requests, and one click sends the list to the current AI session to analyse unfinished tasks against completed work for conflicts and ordering."
+  }
+}
