@@ -4,8 +4,8 @@
  * `client.js` is a browser artifact: it registers a lazy factory on
  * `window.__ModuleLoader__`. This test installs that facade plus a minimal
  * React/DOM stand-in, then drives the real factory with a fake Client context to
- * verify the manifest contract, the tab-type registration, every slot
- * registration, the dictionaries, and the CSS the module installs.
+ * verify the manifest contract, the header trigger, the dropdown host, the
+ * new-session hint, the dictionaries, and the CSS the module installs.
  */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -67,17 +67,18 @@ const React = {
   useSyncExternalStore() {},
 }
 
-const modules = new Map([['react', React]])
+const modules = new Map([
+  ['react', React],
+  ['react-dom', { createPortal: (element) => element }],
+])
 
 /** Build a fake Client context and capture everything the plugin registers. */
 function makeContext() {
   const captured = {
     styles: installedStyles,
     dictionaries: [],
-    tabTypes: [],
     injections: [],
     registrations: [],
-    opened: [],
   }
   const ctx = {
     effect(callback) {
@@ -96,17 +97,6 @@ function makeContext() {
       },
       getSnapshot() {
         return { active: 'zh' }
-      },
-    },
-    sidebarRightTabs: {
-      register(definition) {
-        captured.tabTypes.push(definition)
-        return () => {}
-      },
-    },
-    sidebarRight: {
-      openTab(kind) {
-        captured.opened.push(kind)
       },
     },
     slots: {
@@ -135,8 +125,8 @@ test('registers exactly one browser module under the package name', () => {
   assert.equal(typeof loaded[0].factory, 'function')
 })
 
-test('declares the services the tab and the controller need', () => {
-  assert.deepEqual(plugin.inject, ['slots', 'locale', 'sidebarRightTabs', 'sidebarRight'])
+test('declares only the slots and locale services', () => {
+  assert.deepEqual(plugin.inject, ['slots', 'locale'])
 })
 
 test('installs one stylesheet that uses theme tokens only', () => {
@@ -145,58 +135,45 @@ test('installs one stylesheet that uses theme tokens only', () => {
   assert.equal(captured.styles.length, 1)
   const style = captured.styles[0]
   assert.equal(style.dataset.dshPlugin, 'dsh-todo-list')
+  assert.match(style.textContent, /\.dsh-todo-dd\b/)
+  assert.match(style.textContent, /position: fixed/)
   assert.match(style.textContent, /--dsw-alias-label-primary/)
   assert.match(style.textContent, /text-decoration: line-through/)
   assert.doesNotMatch(style.textContent, /#[0-9a-fA-F]{3,8}\b/, 'CSS must not hard-code colours')
 })
 
-test('registers the tab type with a guide entry', () => {
-  const { captured, ctx } = makeContext()
-  plugin.apply(ctx)
-  assert.equal(captured.tabTypes.length, 1)
-  const definition = captured.tabTypes[0]
-  assert.equal(definition.id, 'dsh-todo-list')
-  assert.equal(definition.kind, 'dsh-todo-list')
-  assert.equal(typeof definition.title, 'function')
-  assert.equal(definition.title(''), 'tab.title')
-  assert.equal(definition.guide.length, 1)
-  assert.equal(definition.guide[0].id, 'todo')
-  assert.equal(typeof definition.guide[0].order, 'number')
-  assert.equal(typeof definition.guide[0].title, 'function')
-  assert.equal(typeof definition.guide[0].icon, 'function')
-})
-
-test('registers the tab body, its live title, and the new-session hint', () => {
+test('registers the header trigger, the dropdown host, and the new-session hint', () => {
   const { captured, ctx } = makeContext()
   plugin.apply(ctx)
   assert.deepEqual(captured.injections.sort(), [
     'conversation.hero.options',
-    'sidebar.right.pane.tab',
-    'sidebar.right.pane.tab.title',
+    'conversation.input.overlay',
+    'conversation.session.header.utilities',
   ])
   assert.equal(captured.registrations.length, 3)
 
-  const body = captured.registrations.find((entry) => entry.options.name === 'sidebar.right.pane.tab')
-  assert.ok(body !== undefined)
-  assert.equal(body.options.key, 'dsh-todo-list')
-  assert.equal(body.options.locale, 'dshTodo')
-  assert.equal(typeof body.component, 'function')
-  const injected = body.options.inject('session-1')
-  assert.equal(injected.sessionId, 'session-1')
-  assert.equal(typeof injected.t, 'function')
-  assert.equal(typeof injected.subscribe, 'function')
-  assert.equal(typeof injected.getSnapshot, 'function')
+  const trigger = captured.registrations.find((entry) => entry.options.name === 'conversation.session.header.utilities')
+  assert.ok(trigger !== undefined)
+  assert.equal(trigger.options.id, 'dsh-todo-list')
+  assert.equal(typeof trigger.options.order, 'number')
+  assert.equal(trigger.options.locale, 'dshTodo')
+  assert.equal(typeof trigger.component, 'function')
+  const triggerInjected = trigger.options.inject('session-1')
+  assert.equal(triggerInjected.sessionId, 'session-1')
+  assert.equal(typeof triggerInjected.t, 'function')
+  assert.equal(typeof triggerInjected.subscribe, 'function')
+  assert.equal(typeof triggerInjected.getSnapshot, 'function')
 
-  const title = captured.registrations.find((entry) => entry.options.name === 'sidebar.right.pane.tab.title')
-  assert.ok(title !== undefined)
-  assert.equal(title.options.key, 'dsh-todo-list')
+  const host = captured.registrations.find((entry) => entry.options.name === 'conversation.input.overlay')
+  assert.ok(host !== undefined)
+  assert.equal(host.options.id, 'dsh-todo-list-panel')
+  assert.equal(typeof host.component, 'function')
+  assert.equal(host.options.inject('session-1').sessionId, 'session-1')
 
   const hero = captured.registrations.find((entry) => entry.options.name === 'conversation.hero.options')
   assert.ok(hero !== undefined)
   assert.equal(hero.options.id, 'dsh-todo-list')
-  const heroInjected = hero.options.inject('session-1')
-  heroInjected.onOpen()
-  assert.deepEqual(captured.opened, ['dsh-todo-list'])
+  assert.equal(typeof hero.component, 'function')
 })
 
 test('registers both dictionaries with the same keys', () => {
@@ -207,28 +184,33 @@ test('registers both dictionaries with the same keys', () => {
   const enKeys = Object.keys(found.get('en')).sort()
   const zhKeys = Object.keys(found.get('zh')).sort()
   assert.deepEqual(zhKeys, enKeys)
-  for (const key of ['tab.title', 'add.placeholder', 'send.label', 'send.success', 'empty.body', 'hint.empty', 'git.tracked', 'error.sessionNotLive']) {
+  for (const key of ['panel.title', 'trigger.label', 'add.placeholder', 'send.label', 'send.success', 'empty.body', 'hint.empty', 'git.tracked', 'error.sessionNotLive']) {
     assert.equal(typeof found.get('en')[key], 'string')
     assert.equal(typeof found.get('zh')[key], 'string')
   }
-  assert.equal(found.get('en')['tab.title'], 'Todo list')
-  assert.equal(found.get('zh')['tab.title'], '待办清单')
+  assert.equal(found.get('en')['trigger.label'], 'Todo')
+  assert.equal(found.get('zh')['trigger.label'], '待办')
+  assert.equal(found.get('zh')['panel.title'], '待办清单')
 })
 
 test('manifest exports the client bundle and display metadata', () => {
   const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
   assert.equal(manifest.name, 'dsh-todo-list')
+  assert.equal(manifest.version, '0.2.0')
   assert.equal(manifest.exports['./client'], './client.js')
   assert.equal(manifest.exports['./icon'], './icon.svg')
   assert.equal(manifest.dsh.client.platform, 'web')
   assert.equal(manifest.dsh.client.immediately, true)
-  assert.ok(manifest.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-sidebar-right'))
+  assert.ok(manifest.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-conversation'))
+  assert.ok(!manifest.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-sidebar-right'))
   assert.ok(manifest.files.includes('client.js'))
   assert.ok(manifest.files.includes('locale/*.json'))
   const en = JSON.parse(readFileSync(new URL('../locale/en.json', import.meta.url), 'utf8'))
   const zh = JSON.parse(readFileSync(new URL('../locale/zh.json', import.meta.url), 'utf8'))
   assert.equal(en.meta.title, 'Todo list')
   assert.equal(zh.meta.title, '待办清单')
+  assert.match(en.meta.description, /dropdown/i)
+  assert.match(zh.meta.description, /下拉面板/)
   assert.ok(en.meta.description.length > 80)
   assert.ok(zh.meta.description.length > 40)
 })

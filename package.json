@@ -1,6 +1,6 @@
 {
   "name": "dsh-todo-list",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A per-project todo checklist in the DeepSeek Harness right sidebar: create, check off, edit and delete tasks, keep them in a git-tracked `.todo.md` at the project root, and send the list to the current AI session for requirement analysis.",
   "type": "module",
   "license": "MIT",
@@ -55,7 +55,6 @@
       "immediately": true,
       "inject": [
         "@deepseek-ai/dsh-client-locale",
-        "@deepseek-ai/dsh-client-ui-sidebar-right",
         "@deepseek-ai/dsh-client-ui-conversation"
       ]
     }

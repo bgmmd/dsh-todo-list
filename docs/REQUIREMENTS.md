@@ -1,8 +1,8 @@
 # dsh-todo-list — 需求分析与设计决策
 
-> 状态：需求分析完成，已实现并安装验证（v0.1.0）。验证细节见第 8 节。
+> 状态：需求分析完成，已实现并安装验证。v0.1.0 为右侧栏整栏页签；v0.2.0 按反馈改为**标题栏按钮 + 下拉面板**（见第 8 节验证结果）。
 > 目标环境：DeepSeek Harness Desktop / Web（0.2.2-rc.5，Web GUI），插件以 bundle 形式安装到 profile。
-> 分析依据：运行时 Inspect（Host/Client Service、Slots、Theme）与安装版本的包源码（`@deepseek-ai/dsh-client-ui-sidebar-right`、`@deepseek-ai/dsh-client-ui-conversation`、`@deepseek-ai/dsh-client-ui-slots`）。
+> 分析依据：运行时 Inspect（Host/Client Service、Slots、Theme）与安装版本的包源码（`@deepseek-ai/dsh-client-ui-conversation`、`@deepseek-ai/dsh-client-ui-sidebar-right`、`@deepseek-ai/dsh-client-ui-slots`）。
 
 ## 1. 背景与目标
 
@@ -20,7 +20,7 @@
 
 | # | 原始需求 | 解读 | 判断 |
 |---|---|---|---|
-| 1 | 对话栏右侧的待办清单，可新建/勾选（置灰+删除线）/修改/删除 | 放在 Web GUI 右侧栏（`rightbar`）的一个自定义页签中，而非浮动卡片 | 合理。右侧栏是产品已有的「第二栏」，有正式扩展点（`ctx.sidebarRightTabs` + `sidebar.right.pane.tab`），不会遮挡对话 |
+| 1 | 对话栏右侧的待办清单，可新建/勾选（置灰+删除线）/修改/删除 | 最初放在右侧栏页签；v0.2.0 按反馈改为会话标题栏的「待办」按钮 + 下拉面板 | 合理。右侧栏整栏对短清单过大；下拉面板入口常驻、占用小，已创建会话也能直接使用 |
 | 2 | 新建会话时轻提示「复杂需求可以创建待办清单」 | 空白新会话的 Hero 区域出现一个轻量入口；同时页签自身有空状态提示 | 合理。用 Hero 的 `conversation.hero.options` 座位，只在「空白会话 + 有 Session」时渲染，不需要自己造 toast 体系 |
 | 3 | 文件存当前根目录；Git 项目提交时纳入追踪 | 存到会话工作目录（项目根）的 `.todo.md`；首次写入时若在 Git 工作树内且未被忽略，自动 `git add` 纳入索引；被忽略时明确告警 | 合理，但需要防冲突：不能覆盖仓库里已有的 `TODO.md`，因此默认用点文件 `.todo.md`，并拒绝改写「同名但没有清单内容」的文件 |
 | 4 | 把清单发给 AI，重点分析未完成待办，结合已完成项分析合理性/冲突 | 插件 UI 按钮 → Host 生成结构化分析提示词 → 作为一条**用户可见的跟进消息**进入当前会话，AI 开启新一轮分析 | 合理。走会话日志（单一事实来源），fork/resume 后仍可复现；不做静默注入，用户看得到自己发起了分析 |
@@ -30,7 +30,7 @@
 
 ## 3. 已定决策
 
-- **D1 位置**：右侧栏页签（kind = `dsh-todo-list`），并在右侧栏的 Guide 页注册一张入口卡（`guide` entry），用户可从 Guide 打开，也可由新会话提示直接打开。
+- **D1 位置（v0.2.0 调整）**：会话标题栏右侧工具区的「待办」按钮（`conversation.session.header.utilities`），点击展开下拉面板；面板 portal 到 `document.body`、按按钮矩形定位（宽 348px、右对齐、随窗口缩放重排）。右侧栏整栏页签移除。已创建会话因此有常驻入口。
 - **D2 存储位置**：`<会话工作目录>/.todo.md`，可通过 bundle 配置 `fileName` 改；必须是相对路径且不得越出工作目录。
 - **D3 文件格式**：Markdown 任务列表，人类可读、Git diff 友好：
   ```markdown
@@ -48,7 +48,7 @@
   - 已跟踪 → 正常；
   - 未跟踪但被忽略 → 只告警（不改 `.gitignore`）；
   - 未跟踪且未忽略 → `git add -- <file>` 纳入索引（不 commit，提交时机仍由用户决定）。
-- **D6 新会话提示**：Hero 右侧的紧凑入口（灯泡图标 + 「复杂需求？建个待办清单 / Track a complex task」），点击直接打开右侧栏页签；清单已有内容时显示「待办 2/5」入口。只在空白会话出现，不打扰已有对话。
+- **D6 新会话提示**：空白会话 Hero 行的紧凑入口（灯泡 + 「复杂需求？建个待办清单 / Track a complex task」），点击展开同一个下拉面板；清单已有内容时显示「待办 done/total」。只在空白会话出现，不打扰已有对话。
 - **D7 发给 AI 的形态**：`ctx.agents.get(sessionId).followup(userMessage(text))`，一条普通用户消息；提示词包含完整清单、完成/未完成计数、分析要求（未完成项逐条、与已完成项的冲突/重复/依赖、建议顺序、不要直接改文件先给建议）。会话不活跃时明确报错，不静默丢弃。
 - **D8 双向同步**：面板打开时每 4 秒轮询文件元数据（mtime），发现外部修改（AI 或协作者）自动重载；正在编辑或保存时暂停，避免打断输入。
 - **D9 文案**：中英文（跟随 DSH locale），英文句子仅首字母大写；所有颜色只用 `--dsw-alias-*` 主题 token。
@@ -56,10 +56,13 @@
 
 ## 4. 功能规格
 
-### FR-1 右侧栏页签
-- 注册 tab 类型 `dsh-todo-list`（`multiple: false`，`keepMounted: false`），并在 Guide 中提供入口卡。
-- 页签标题中英文随语言切换（`sidebar.right.pane.tab.title`）。
-- 页签打开时占据右侧栏整栏，内容自适应高度、可滚动。
+### FR-1 标题栏按钮与下拉面板（v0.2.0）
+- 在 `conversation.session.header.utilities` 注册紧凑按钮：清单图标 + 「待办」+ 完成进度 `done/total` + 下拉箭头；所有会话（已创建 / 新会话）都显示。
+- 点击按钮切换面板：展开时按钮高亮、箭头旋转；再点按钮、点击面板外、按 Esc、点面板 `×` 都会收起。
+- 面板固定定位在按钮下方、右对齐，宽 348px，窄窗口收缩到视口内；portal 到 `document.body`，标题栏不裁剪。
+- 面板内容：标题 + 进度 + `AI 分析` + `×`、进度条、任务列表、添加输入框、`.todo.md` 与 Git 状态。
+- 空白新会话的 Hero 轻提示打开同一个面板；没有 Session 时不渲染按钮（无项目可存）。
+- 面板由 `conversation.input.overlay` 座位的常驻宿主渲染（该座位在 Hero 状态下也挂载），通过模块级 store 与按钮/提示共享开合、锚点与 Session。
 
 ### FR-2 待办操作
 - 新建：底部输入框回车新增，新增后清空并保持输入焦点；空文本忽略；长度超限（默认 500 字符）截断并提示。
@@ -88,7 +91,7 @@
 - **安全**：同源 JSON 路由，仅接受本页 Origin；拒绝跨站、非 JSON、超大 body（默认 128 KiB）；所有路径限制在工作目录内；Git 只执行只读命令 + `git add`。
 - **不污染会话**：除用户主动「发送给 AI」产生的一条用户消息外，插件不写任何会话事件；待办状态不进入会话日志。
 - **零运行时依赖**：Host 只用 Node 内置模块；Client 只用 `react`（平台模块表提供）。
-- **可卸载**：页签、Guide 入口、Hero 入口、路由随插件卸载一起移除。
+- **可卸载**：标题栏按钮、下拉面板、Hero 入口、路由随插件卸载一起移除。
 - **跨平台**：Windows/macOS/Linux；Git 调用参数数组直传、`windowsHide`。
 - **性能**：清单文件通常 < 10 KiB；轮询只读 stat/解析，不做逐条事件订阅。
 
@@ -96,11 +99,12 @@
 
 | 关注点 | 方案 | 依据 |
 |---|---|---|
-| 右侧栏页签 | `ctx.sidebarRightTabs.register({ id, kind, title, guide })` + `ctx.slots.inject('sidebar.right.pane.tab', () => ctx.slots.register({ name, key, locale, inject }, Body))` | sidebar-right 包 README / `contract/slots.ts`；documentpreview 是官方「外部包注册页签」的实例 |
-| 页签标题 | `sidebar.right.pane.tab.title` 同 key 注册，跟随 locale | 同上 |
-| 新会话入口 | `conversation.hero.options`（list，session scope，仅在 Hero 行渲染） | ui-conversation `ConversationContent.tsx` L133 |
+| 标题栏按钮 | `conversation.session.header.utilities`（list，session scope） | 右对齐工具区（history / More 所在）；运行时 Slot 检查 |
+| 下拉面板宿主 | `conversation.input.overlay`（list，session scope，Hero 状态也挂载）+ `ReactDOM.createPortal(document.body)` | ui-conversation `InputBar.tsx` 在 `sessionId !== undefined` 时无条件渲染该座位；portal 避开标题栏裁剪 |
+| 面板定位 | 打开时记录触发按钮 `getBoundingClientRect()`，面板 `position: fixed`；resize/scroll 重算并 clamp 到视口 | 实测 + 原型验证 |
 | Client→Host | `ctx.webServer.register({ kind:'exact', path, handler })` 同源 JSON 路由 | DSH 的 `@Remote` 命名空间构建期固定；既有插件 `dsh-vibecoding-preflight` 同样采用 |
 | 会话目录 | `ctx.sessions.get(id)` → `ctx.workingDirectory.get(session)`，回退 `session.header.cwd` | Host Service 契约 |
+| 新会话入口 | `conversation.hero.options`（list，session scope，仅在 Hero 行渲染） | ui-conversation `ConversationContent.tsx` L133 |
 | 发给 AI | `ctx.agents.get(sessionId).followup(createUserMessage(text))` | 既有插件验证过的 Agent 运行时接口 |
 | 样式 | 仅 `--dsw-alias-*` token；页面圆角/间距参照侧栏现有列表 | `Theme.listTokens` 实测 13 个 token |
 
@@ -109,28 +113,31 @@
 - 文件是唯一事实来源：手动编辑格式错误（非任务行）不会丢数据，但不会被识别为待办。
 - 不做逐项冲突合并：多人同时编辑同一文件时，后保存者覆盖前者；面板轮询能发现外部修改并重载，但不做三方合并。
 - 不自动 commit：只做到 `git add`，提交信息与时机由用户决定（避免插件替用户写提交历史）。
-- 右侧栏是浏览器本地布局：换设备不同步（页签是否存在由 DSH 自己管理），清单内容跟着 Git 文件走。
-- 视觉/交互的最终确认需在浏览器中目视；本环境将用无头浏览器做尽可能的自动化验证。
+- 下拉面板锚定在标题栏按钮下方，随窗口缩放/滚动重算并 clamp 到视口；面板不持久化展开状态（每次载入默认收起，按钮常驻）。
+- 视觉/交互的最终确认需在浏览器中目视；本环境用无头浏览器 + CDP 做尽可能的自动化验证。
 
-## 8. 验收结果
+## 8. 验收结果（v0.2.0：标题栏按钮 + 下拉面板）
 
-验证方式：`node --test`（Host 22 项 + Client 7 项，全部通过）；安装到 desktop profile 后，用无头 Edge 通过 CDP 打开真实 Web GUI 逐项操作；Host 路由用真实 HTTP 请求探测。
+验证方式：`node --test` 共 21 项全部通过（Host 14 项 + Client 7 项）；安装到 desktop profile 后，用无头 Edge 通过 CDP 打开真实 Web GUI 操作；应用重启后再次回归；Host 路由用真实 HTTP 请求探测。
 
-- [x] 右侧栏 Guide 出现「待办清单」入口，打开后页面正常渲染（截图：Todo list 页签、计数、进度条、空状态、底部输入框与文件/Git 徽标）。
-- [x] 新建 / 勾选（置灰 + 删除线）/ 行内修改 / 删除均可用；每一步都写回 `.todo.md` 并被后续读取确认。
-- [x] 勾选后计算样式为 `text-decoration: line-through`、次要文字色 + 0.75 透明度；进度条 100%。
-- [x] 保存后保留标题/注释，多余任务行被删除，空清单时保留插件标记。
-- [x] Git 项目：Host 测试在真实临时仓库中验证首次保存执行 `git add`、`git ls-files` 可见文件；`.gitignore` 排除时报告 `ignored` 且不追踪（当前工作目录不是 Git 仓库，GUI 中显示「非 Git 项目」）。
-- [x] 新会话 Hero 出现轻提示；有待办时显示「Todo 1/2」，无待办时显示「Complex task? Track it」；点击可打开页签；保存/外部变更后提示会刷新。
-- [x] 「发送给 AI」在真实会话中生成一条用户消息（含完整清单、完成/未完成计数、四项分析要求），AI 随即开始分析；会话可停止并归档。
-- [x] 外部修改文件后约 4 秒内面板自动重载（页签可见时轮询；后台页签暂停）。
-- [x] 中英文文案、插件管理器标题/描述/图标均正常显示（英文界面实测；中文界面同名文案与截图一致）。
-- [x] `Send to AI` 之外不写入任何会话事件；路由拒绝 GET、跨站、非 JSON 与超大 body。
+- [x] 已创建会话：标题栏右侧工具区出现「待办」按钮（与 history / More 同排），点击在按钮正下方 6px 处展开下拉面板（宽 348px、右对齐、白底、带指向按钮的小箭头）。
+- [x] 点击按钮再次收起；点击面板外、按 Esc、点面板 `×` 均能收起（实测 `aria-expanded` 同步为 false）。
+- [x] 新建 / 勾选（置灰 + 删除线）/ 行内修改 / 删除均可用；每一步都写回 `.todo.md`，按钮计数（`0/2 → 1/2 → 1/1`）同步更新。
+- [x] 勾选后计算样式为 `text-decoration: line-through`、次要文字色 + 0.75 透明度；进度条 50%。
+- [x] 空白新会话：Hero 轻提示「复杂需求？建个待办清单」点击打开同一个面板，锚定在提示下方。
+- [x] 应用重启后插件仍自动加载：Hero 提示、标题栏按钮、下拉面板、增删改与文件写入全部复验通过。
+- [x] 外部修改文件后约 4 秒内面板自动重载（面板打开时轮询；后台页签暂停）。
+- [x] 中英文文案、插件管理器标题/描述/图标正常；下拉面板内所有颜色仅使用主题 token（白底、主题边框、主题文字色）。
+- [x] `Send to AI` 之外不写入任何会话事件；路由拒绝 GET、跨站、非 JSON 与超大 body（Host 测试覆盖）。
+- [x] 文件与 Git：Host 测试在真实临时仓库验证首次保存 `git add`、`git ls-files` 可见；`.gitignore` 排除时报告 `ignored` 且不追踪；GUI 当前项目显示「非 Git 项目」。
+- [x] 「发送给 AI」的 Host 路由与提示词由 Host 测试覆盖；v0.1.0 已在真实会话中端到端验证过同一条注入路径，v0.2.0 只改了面板位置与入口，未再触发真实 AI 轮次。
 - [ ] 卸载插件后的完整清理只做了静态确认（所有注册都在 `ctx.effect` 内，随 fiber 释放），未在 GUI 中实际卸载后目视复查。
 - [ ] 深色主题、窄窗口（< 768px）下的外观未逐一目视验证。
+- [ ] 旧版本（v0.1.0）在右侧栏留下的页签没有迁移清理：升级后该浏览器若仍记住旧页签，右侧栏会显示“无法查看”的空态，手动关闭即可。
 
 ## 9. 验证备注
 
 - GUI 验证在无头 Edge 中进行：通过临时的一次性路由取得 DSH 的认证 URL（仅本机、验证后立即移除该临时插件并确认路由 404），未改动用户的持久配置。
-- 测试用的 `.todo.md`（位于 `D:\dsharness`）与测试会话已清理：文件删除，会话停止并归档。
+- 测试产生的 `.todo.md`（位于 `D:\dsharness`、`wechat-groupbot` 项目）与测试会话已清理：文件删除；测试期间未向会话发送任何消息。
+- 回收站式浏览器配置、临时截图与探针文件均已删除；profile 中仅保留 `dsh-todo-list` 本体。
 

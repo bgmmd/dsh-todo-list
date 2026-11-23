@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>待办下拉面板 · 原型</title>
+<style>
+  :root {
+    --bg: #fbfbfa;
+    --sidebar: #f4f4f2;
+    --layer: #ffffff;
+    --border: #e7e7e4;
+    --border-strong: #dededa;
+    --text: #1f2328;
+    --muted: #6b7075;
+    --faint: #9aa0a6;
+    --brand: #1f2328;
+    --green: #1f9d63;
+    --shadow: 0 20px 48px rgba(24, 24, 20, .16), 0 2px 8px rgba(24, 24, 20, .07);
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: var(--font); font-size: 13px; color: var(--text);
+    background: var(--bg); -webkit-font-smoothing: antialiased; overflow: hidden;
+  }
+  button { font-family: inherit; }
+  .app { display: flex; height: 100vh; }
+
+  /* left sidebar (context only) */
+  .sidebar {
+    width: 264px; flex: none; background: var(--sidebar);
+    border-right: 1px solid var(--border); padding: 10px 8px;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .brand { display: flex; align-items: center; gap: 7px; padding: 6px 8px 12px; }
+  .brand-mark {
+    width: 18px; height: 18px; border-radius: 6px; background: var(--brand);
+    display: inline-flex; align-items: center; justify-content: center; color: #fff;
+  }
+  .brand-name { font-weight: 700; font-size: 14px; letter-spacing: -.02em; }
+  .brand-tag {
+    font-size: 8.5px; letter-spacing: .08em; color: var(--muted);
+    border: 1px solid var(--border-strong); border-radius: 3px; padding: 1px 4px;
+  }
+  .new-session {
+    display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px;
+    border-radius: 8px; border: 1px solid var(--border); background: var(--layer);
+    color: var(--text); font-size: 12.5px; cursor: default;
+  }
+  .new-session .kbd { margin-left: auto; font-size: 10px; color: var(--faint); }
+  .nav-row { display: flex; align-items: center; gap: 9px; height: 32px; padding: 0 10px; border-radius: 8px; color: #3c4147; font-size: 12.5px; }
+  .nav-ico { width: 15px; height: 15px; color: var(--muted); flex: none; }
+  .section { display: flex; align-items: center; justify-content: space-between; padding: 16px 10px 6px; color: var(--faint); font-size: 10.5px; letter-spacing: .06em; }
+  .section-actions { display: flex; gap: 8px; color: var(--faint); }
+  .ws { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px; border-radius: 7px; font-size: 12.5px; color: #3c4147; }
+  .ws.on { background: #ebebe8; }
+  .session { display: flex; align-items: center; gap: 8px; height: 29px; margin-left: 14px; padding: 0 8px 0 6px; border-radius: 7px; font-size: 12.5px; color: #4b5056; }
+  .session.on { background: #ebebe8; color: var(--text); }
+  .session .dot { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid #cfd2d0; flex: none; }
+  .session.on .dot { border-color: var(--text); background: conic-gradient(var(--text) 0 55%, transparent 55%); }
+  .spacer { flex: 1; }
+
+  /* main column */
+  .main { flex: 1; min-width: 0; position: relative; display: flex; flex-direction: column; }
+  .topbar {
+    height: 50px; flex: none; display: flex; align-items: center; gap: 10px;
+    padding: 0 16px 0 20px; border-bottom: 1px solid rgba(0,0,0,.04);
+  }
+  .topbar .session-title { font-size: 13px; font-weight: 600; }
+  .topbar .caret { color: var(--faint); }
+  .topbar .top-actions { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+  .icon-btn {
+    width: 26px; height: 26px; border: 0; border-radius: 7px; background: transparent;
+    color: var(--muted); display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .icon-btn:hover { background: #f0f0ee; color: var(--text); }
+
+  /* header todo trigger */
+  .header-todo {
+    height: 28px; padding: 0 9px 0 8px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--layer);
+    color: #3a3f45; font-size: 12px; display: inline-flex; align-items: center; gap: 6px;
+    cursor: pointer; margin-right: 4px;
+  }
+  .header-todo:hover { background: #f6f6f4; }
+  .header-todo.is-active { background: #f0f0ed; border-color: var(--border-strong); color: var(--text); }
+  .header-todo .glyph {
+    width: 16px; height: 16px; border-radius: 5px; background: #eef7f2; color: var(--green);
+    display: inline-flex; align-items: center; justify-content: center; flex: none;
+  }
+  .header-todo .count { font-size: 10.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .header-todo .chev { color: var(--faint); margin-left: 1px; transition: transform .12s ease; }
+  .header-todo.is-active .chev { transform: rotate(180deg); }
+
+  .conversation { flex: 1; min-height: 0; overflow: auto; padding: 26px 0 14px; }
+  .thread { width: 760px; max-width: calc(100% - 64px); margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+  .msg { font-size: 13.5px; line-height: 1.72; }
+  .msg.user { display: flex; justify-content: flex-end; }
+  .msg.user .bubble { max-width: 78%; padding: 10px 14px; border-radius: 14px 14px 4px 14px; background: #f0f0ed; color: var(--text); }
+  .msg.assistant .bubble { padding: 2px 2px; max-width: 100%; }
+  .note {
+    margin-top: 10px; display: flex; gap: 10px; align-items: flex-start;
+    padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px;
+    background: #fcfcfa; color: var(--muted); font-size: 12.5px;
+  }
+  .note-ico { color: var(--green); flex: none; margin-top: 1px; }
+
+  .composer-zone { flex: none; display: flex; justify-content: center; padding: 10px 0 22px; }
+  .composer {
+    width: 760px; max-width: calc(100% - 64px); background: var(--layer);
+    border: 1px solid var(--border); border-radius: 18px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.03), 0 8px 28px rgba(0,0,0,.04);
+    padding: 12px 14px 10px;
+  }
+  .composer-input { min-height: 38px; font-size: 13.5px; color: #b6b9b6; padding: 4px 2px 0; }
+  .composer-tools { display: flex; align-items: center; gap: 7px; }
+  .tool-btn {
+    height: 26px; min-width: 26px; padding: 0 7px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--layer); color: var(--muted);
+    display: inline-flex; align-items: center; justify-content: center; gap: 5px; font-size: 12px; cursor: pointer;
+  }
+  .tool-btn:hover { background: #f6f6f4; }
+  .composer .grow { flex: 1; }
+  .model { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 4px; }
+  .send { width: 30px; height: 30px; border-radius: 50%; border: 0; background: var(--brand); color: #fff; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+
+  /* dropdown panel */
+  .dropdown {
+    position: absolute; top: 56px; right: 78px; width: 348px;
+    background: var(--layer); border: 1px solid var(--border); border-radius: 13px;
+    box-shadow: var(--shadow); z-index: 30;
+  }
+  .dropdown::before {
+    content: ""; position: absolute; top: -6px; right: 38px;
+    width: 10px; height: 10px; background: var(--layer);
+    border-left: 1px solid var(--border); border-top: 1px solid var(--border);
+    transform: rotate(45deg); border-top-left-radius: 2px;
+  }
+  .dropdown.is-hidden { display: none; }
+  .dd-head {
+    display: flex; align-items: center; gap: 7px;
+    padding: 9px 9px 8px 12px; border-radius: 13px 13px 0 0;
+  }
+  .dd-icon {
+    width: 21px; height: 21px; border-radius: 6px; background: #eef7f2;
+    display: inline-flex; align-items: center; justify-content: center; color: var(--green); flex: none;
+  }
+  .dd-title { font-size: 12.5px; font-weight: 600; letter-spacing: -.01em; }
+  .dd-count { font-size: 10.5px; color: var(--muted); background: #f4f5f3; border-radius: 999px; padding: 1px 6px; font-variant-numeric: tabular-nums; }
+  .dd-head .grow { flex: 1; }
+  .ai-btn {
+    height: 24px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--layer); color: #3a3f45; font-size: 11.5px;
+    display: inline-flex; align-items: center; gap: 4px; cursor: pointer;
+  }
+  .ai-btn:hover { background: #f6f6f4; }
+  .dd-head .icon-btn { width: 22px; height: 22px; }
+  .progress { height: 2px; margin: 0 12px 3px; border-radius: 1px; background: #f0f0ed; overflow: hidden; }
+  .progress i { display: block; height: 100%; width: 34%; background: var(--brand); border-radius: 1px; }
+  .dd-body { padding: 4px 6px 2px; }
+  .row { display: flex; align-items: flex-start; gap: 8px; padding: 6px 6px 6px 7px; border-radius: 8px; min-height: 31px; }
+  .row:hover { background: #f7f7f4; }
+  .check {
+    width: 15px; height: 15px; margin-top: 2px; border-radius: 4.5px;
+    border: 1.5px solid #d5d8d5; flex: none; display: inline-flex; align-items: center; justify-content: center; color: #fff;
+  }
+  .row.done .check { background: var(--brand); border-color: var(--brand); }
+  .txt { flex: 1; font-size: 12.5px; line-height: 1.45; color: var(--text); padding-top: 1px; }
+  .row.done .txt { color: #8d9297; text-decoration: line-through; }
+  .row .del {
+    width: 20px; height: 20px; border: 0; border-radius: 5px; background: transparent;
+    color: var(--faint); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0;
+  }
+  .row:hover .del { opacity: 1; }
+  .dd-add { display: flex; align-items: center; gap: 6px; padding: 7px 12px 5px; border-top: 1px solid #f1f1ee; margin-top: 4px; }
+  .dd-add input {
+    flex: 1; height: 27px; border: 1px solid #ecece9; border-radius: 7px;
+    background: #fbfbf8; padding: 0 8px; font-family: inherit; font-size: 12px; color: var(--text); outline: none;
+  }
+  .dd-add input::placeholder { color: #a4a9ad; }
+  .dd-add input:focus { border-color: #c9ccce; background: #fff; }
+  .dd-add .add {
+    width: 27px; height: 27px; border-radius: 7px; border: 1px solid var(--border);
+    background: var(--layer); color: var(--muted); cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .dd-foot { display: flex; align-items: center; justify-content: space-between; padding: 5px 12px 8px; font-size: 10.5px; color: var(--faint); border-radius: 0 0 13px 13px; }
+  .git-ok { display: inline-flex; align-items: center; gap: 4px; color: var(--green); }
+  .git-ok i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-mark">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M4 15c4.5 0 6-9 10.5-9S20 12 20 15c-4.5 0-6 4-10.5 4S4 18 4 15Z" fill="currentColor"/></svg>
+      </span>
+      <span class="brand-name">deepseek</span>
+      <span class="brand-tag">HARNESS</span>
+    </div>
+    <div class="new-session">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.2"/><path d="M8 5.4v5.2M5.4 8h5.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+      新会话 <span class="kbd">Ctrl Alt N</span>
+    </div>
+    <div class="nav-row"><span class="nav-ico">◇</span>插件</div>
+    <div class="nav-row"><span class="nav-ico">◉</span>OpenCode Go</div>
+    <div class="nav-row"><span class="nav-ico">◷</span>自动化任务</div>
+    <div class="nav-row"><span class="nav-ico">⋯</span>更多</div>
+    <div class="section"><span>工作区</span><span class="section-actions">⌕ ⇅ ＋</span></div>
+    <div class="ws on">▤ dsharness</div>
+    <div class="session on"><span class="dot"></span>待办浮窗改造</div>
+    <div class="session"><span class="dot"></span>首页性能优化</div>
+    <div class="session"><span class="dot"></span>CSV 导出需求</div>
+    <div class="ws">▤ website-redesign</div>
+    <div class="ws">▤ data-pipeline</div>
+    <div class="spacer"></div>
+    <div class="nav-row"><span class="nav-ico">⚙</span>设置</div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <span class="session-title">待办浮窗改造</span>
+      <span class="caret">⌄</span>
+      <div class="top-actions">
+        <button class="header-todo is-active" id="trigger" title="待办清单" aria-expanded="true">
+          <span class="glyph">
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><rect x="2" y="2.4" width="12" height="11.2" rx="2.4" stroke="currentColor" stroke-width="1.5"/><path d="M4.8 7.1 6.1 8.4 8.6 5.7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.8 10.6h2.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </span>
+          <span>待办</span>
+          <span class="count">1/3</span>
+          <svg class="chev" width="9" height="9" viewBox="0 0 16 16" fill="none"><path d="m4 6 4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="icon-btn" title="会话历史">◷</button>
+        <button class="icon-btn" title="更多">⋯</button>
+      </div>
+    </header>
+
+    <div class="conversation">
+      <div class="thread">
+        <div class="msg user">
+          <div class="bubble">按钮放到顶部吧，点击后出现下拉面板，我先看一下效果。</div>
+        </div>
+        <div class="msg assistant">
+          <div class="bubble">
+            <div>收到。会话标题栏右上角常驻「待办」按钮，点击在按钮下方展开下拉面板；再点按钮、点面板外或按 Esc 收起。</div>
+            <div class="note">
+              <span class="note-ico">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="2.6" width="12" height="11" rx="2.4" stroke="currentColor" stroke-width="1.2"/><path d="M4.7 7.1 6 8.4 8.5 5.7M9.7 7.4h2.2M4.7 10.7 6 12l2.5-2.7M9.7 11h2.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
+              下拉面板里可勾选、行内编辑、删除、添加；右上角「AI 分析」把清单发给当前会话。任何已创建的会话都能用。
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="composer-zone">
+      <div class="composer">
+        <div class="composer-input">继续完善下拉面板的交互…</div>
+        <div class="composer-tools">
+          <button class="tool-btn" title="添加内容">＋</button>
+          <button class="tool-btn" title="语音">◌</button>
+          <div class="grow"></div>
+          <span class="model">DeepSeek V4.1 Flash ⌄</span>
+          <button class="send" title="发送">↑</button>
+        </div>
+      </div>
+    </div>
+
+    <section class="dropdown" id="panel">
+      <header class="dd-head">
+        <span class="dd-icon">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><rect x="2" y="2.4" width="12" height="11.2" rx="2.4" stroke="currentColor" stroke-width="1.4"/><path d="M4.8 7.1 6.1 8.4 8.6 5.7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.8 10.6h2.1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        </span>
+        <span class="dd-title">待办清单</span>
+        <span class="dd-count">1/3</span>
+        <div class="grow"></div>
+        <button class="ai-btn" title="把清单发给当前 AI 分析">
+          <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 1.6v3.2M8 11.2v3.2M1.6 8h3.2M11.2 8h3.2M3.5 3.5l2.2 2.2M10.3 10.3l2.2 2.2M12.5 3.5l-2.2 2.2M5.7 10.3l-2.2 2.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+          AI 分析
+        </button>
+        <button class="icon-btn" id="close" title="收起">×</button>
+      </header>
+      <div class="progress"><i style="width:34%"></i></div>
+      <div class="dd-body">
+        <div class="row done">
+          <span class="check"><svg width="9" height="9" viewBox="0 0 12 12" fill="none"><path d="M2.2 6.3 4.7 8.8 9.8 3.3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span class="txt">设计下拉面板原型</span>
+          <button class="del" title="删除"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M3.2 4.4h9.6M6.2 4.4V3.2h3.6v1.2M4.4 4.4l.6 8.2h6l.6-8.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+        <div class="row">
+          <span class="check"></span>
+          <span class="txt">顶部按钮 + 下拉面板</span>
+          <button class="del" title="删除"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M3.2 4.4h9.6M6.2 4.4V3.2h3.6v1.2M4.4 4.4l.6 8.2h6l.6-8.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+        <div class="row">
+          <span class="check"></span>
+          <span class="txt">发送清单给 AI 做需求分析</span>
+          <button class="del" title="删除"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M3.2 4.4h9.6M6.2 4.4V3.2h3.6v1.2M4.4 4.4l.6 8.2h6l.6-8.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+      </div>
+      <div class="dd-add">
+        <input placeholder="添加待办，回车确认">
+        <button class="add" title="添加">＋</button>
+      </div>
+      <div class="dd-foot">
+        <span>.todo.md</span>
+        <span class="git-ok"><i></i>已纳入 Git 追踪</span>
+      </div>
+    </section>
+  </main>
+</div>
+<script>
+  const state = new URLSearchParams(location.search).get('state') || 'open';
+  const panel = document.getElementById('panel');
+  const trigger = document.getElementById('trigger');
+  if (state === 'closed') {
+    panel.classList.add('is-hidden');
+    trigger.classList.remove('is-active');
+    trigger.setAttribute('aria-expanded', 'false');
+  }
+</script>
+</body>
+</html>

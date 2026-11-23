@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>待办浮窗 · 原型</title>
+<style>
+  :root {
+    --bg: #fbfbfa;
+    --sidebar: #f4f4f2;
+    --layer: #ffffff;
+    --border: #e7e7e4;
+    --border-strong: #dedeDA;
+    --text: #1f2328;
+    --muted: #6b7075;
+    --faint: #9aa0a6;
+    --brand: #1f2328;
+    --green: #1f9d63;
+    --shadow: 0 18px 44px rgba(24, 24, 20, .16), 0 2px 8px rgba(24, 24, 20, .07);
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: var(--font);
+    font-size: 13px;
+    color: var(--text);
+    background: var(--bg);
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+  button { font-family: inherit; }
+
+  .app { display: flex; height: 100vh; }
+
+  /* ---------- left sidebar (context only) ---------- */
+  .sidebar {
+    width: 264px; flex: none; background: var(--sidebar);
+    border-right: 1px solid var(--border);
+    padding: 10px 8px; display: flex; flex-direction: column; gap: 2px;
+  }
+  .brand { display: flex; align-items: center; gap: 7px; padding: 6px 8px 12px; }
+  .brand-mark {
+    width: 18px; height: 18px; border-radius: 6px; background: var(--brand);
+    display: inline-flex; align-items: center; justify-content: center; color: #fff;
+  }
+  .brand-name { font-weight: 700; font-size: 14px; letter-spacing: -.02em; }
+  .brand-tag {
+    font-size: 8.5px; letter-spacing: .08em; color: var(--muted);
+    border: 1px solid var(--border-strong); border-radius: 3px; padding: 1px 4px;
+  }
+  .new-session {
+    display: flex; align-items: center; gap: 8px;
+    height: 34px; padding: 0 10px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--layer);
+    color: var(--text); font-size: 12.5px; cursor: default;
+  }
+  .new-session .kbd { margin-left: auto; font-size: 10px; color: var(--faint); }
+  .nav-row {
+    display: flex; align-items: center; gap: 9px;
+    height: 32px; padding: 0 10px; border-radius: 8px; color: #3c4147; font-size: 12.5px;
+  }
+  .nav-row.on { background: #ebebe8; }
+  .nav-ico { width: 15px; height: 15px; color: var(--muted); flex: none; }
+  .section {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 10px 6px; color: var(--faint); font-size: 10.5px; letter-spacing: .06em;
+  }
+  .section-actions { display: flex; gap: 8px; color: var(--faint); }
+  .ws { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px; border-radius: 7px; font-size: 12.5px; color: #3c4147; }
+  .ws.on { background: #ebebe8; }
+  .session {
+    display: flex; align-items: center; gap: 8px;
+    height: 29px; margin-left: 14px; padding: 0 8px 0 6px; border-radius: 7px;
+    font-size: 12.5px; color: #4b5056;
+  }
+  .session.on { background: #ebebe8; color: var(--text); }
+  .session .dot { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid #cfd2d0; flex: none; }
+  .session.on .dot { border-color: var(--text); background: conic-gradient(var(--text) 0 55%, transparent 55%); }
+  .spacer { flex: 1; }
+
+  /* ---------- main column ---------- */
+  .main { flex: 1; min-width: 0; position: relative; display: flex; flex-direction: column; }
+  .topbar {
+    height: 50px; flex: none; display: flex; align-items: center; gap: 10px;
+    padding: 0 20px; border-bottom: 1px solid rgba(0,0,0,.04);
+  }
+  .topbar .session-title { font-size: 13px; font-weight: 600; }
+  .topbar .caret { color: var(--faint); }
+  .topbar .top-actions { margin-left: auto; display: flex; gap: 4px; }
+  .icon-btn {
+    width: 26px; height: 26px; border: 0; border-radius: 7px; background: transparent;
+    color: var(--muted); display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .icon-btn:hover { background: #f0f0ee; color: var(--text); }
+
+  .conversation { flex: 1; min-height: 0; overflow: auto; padding: 26px 0 14px; }
+  .thread { width: 760px; max-width: calc(100% - 64px); margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+  .msg { font-size: 13.5px; line-height: 1.72; }
+  .msg.user { display: flex; justify-content: flex-end; }
+  .msg.user .bubble {
+    max-width: 78%; padding: 10px 14px; border-radius: 14px 14px 4px 14px;
+    background: #f0f0ed; color: var(--text);
+  }
+  .msg.assistant .bubble { padding: 2px 2px; max-width: 100%; }
+  .msg.assistant .lead { color: var(--text); }
+  .msg.assistant .note {
+    margin-top: 10px; display: flex; gap: 10px; align-items: flex-start;
+    padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px;
+    background: #fcfcfa; color: var(--muted); font-size: 12.5px;
+  }
+  .note-ico { color: var(--green); flex: none; margin-top: 1px; }
+
+  /* ---------- composer ---------- */
+  .composer-zone { flex: none; display: flex; justify-content: center; padding: 10px 0 22px; }
+  .composer {
+    width: 760px; max-width: calc(100% - 64px);
+    background: var(--layer); border: 1px solid var(--border); border-radius: 18px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.03), 0 8px 28px rgba(0,0,0,.04);
+    padding: 12px 14px 10px;
+  }
+  .composer-input { min-height: 38px; font-size: 13.5px; color: #b6b9b6; padding: 4px 2px 0; }
+  .composer-tools { display: flex; align-items: center; gap: 7px; }
+  .tool-btn {
+    height: 26px; min-width: 26px; padding: 0 7px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--layer); color: var(--muted);
+    display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+    font-size: 12px; cursor: pointer;
+  }
+  .tool-btn:hover { background: #f6f6f4; }
+  .todo-pill {
+    height: 26px; padding: 0 10px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--layer);
+    color: #4a4f55; display: inline-flex; align-items: center; gap: 5px;
+    font-size: 12px; cursor: pointer;
+  }
+  .todo-pill:hover { background: #f6f6f4; }
+  .todo-pill.is-active { background: #f0f0ed; border-color: var(--border-strong); color: var(--text); }
+  .todo-pill svg { color: var(--green); }
+  .composer .grow { flex: 1; }
+  .model { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 4px; }
+  .send {
+    width: 30px; height: 30px; border-radius: 50%; border: 0; background: var(--brand); color: #fff;
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+
+  /* ---------- floating todo widget ---------- */
+  .float {
+    position: absolute; right: 26px; bottom: 118px; width: 340px;
+    background: var(--layer); border: 1px solid var(--border); border-radius: 14px;
+    box-shadow: var(--shadow); overflow: hidden; z-index: 20;
+  }
+  .float.is-hidden { display: none; }
+  .float-head {
+    height: 42px; display: flex; align-items: center; gap: 7px;
+    padding: 0 8px 0 9px; cursor: grab;
+  }
+  .drag-dots { color: #c9ccce; font-size: 10px; letter-spacing: -1.5px; user-select: none; padding-right: 1px; }
+  .float-icon {
+    width: 21px; height: 21px; border-radius: 6px; background: #eef7f2;
+    display: inline-flex; align-items: center; justify-content: center; color: var(--green); flex: none;
+  }
+  .float-title { font-size: 12.5px; font-weight: 600; letter-spacing: -.01em; }
+  .float-count {
+    font-size: 10.5px; color: var(--muted); background: #f4f5f3;
+    border-radius: 999px; padding: 1px 6px; font-variant-numeric: tabular-nums;
+  }
+  .float-head .grow { flex: 1; }
+  .ai-btn {
+    height: 24px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--layer); color: #3a3f45; font-size: 11.5px;
+    display: inline-flex; align-items: center; gap: 4px; cursor: pointer;
+  }
+  .ai-btn:hover { background: #f6f6f4; }
+  .ai-btn svg { color: var(--brand); }
+  .float-head .icon-btn { width: 22px; height: 22px; }
+  .progress { height: 2px; margin: 0 12px 2px; border-radius: 1px; background: #f0f0ed; overflow: hidden; }
+  .progress i { display: block; height: 100%; width: 34%; background: var(--brand); border-radius: 1px; }
+  .float-body { padding: 4px 6px 2px; }
+  .row {
+    display: flex; align-items: flex-start; gap: 8px;
+    padding: 6px 6px 6px 7px; border-radius: 8px; min-height: 31px;
+  }
+  .row:hover { background: #f7f7f4; }
+  .check {
+    width: 15px; height: 15px; margin-top: 2px; border-radius: 4.5px;
+    border: 1.5px solid #d5d8d5; flex: none; display: inline-flex;
+    align-items: center; justify-content: center; color: #fff;
+  }
+  .row.done .check { background: var(--brand); border-color: var(--brand); }
+  .txt { flex: 1; font-size: 12.5px; line-height: 1.45; color: var(--text); padding-top: 1px; }
+  .row.done .txt { color: #8d9297; text-decoration: line-through; }
+  .row .del { width: 20px; height: 20px; border: 0; border-radius: 5px; background: transparent; color: var(--faint); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0; }
+  .row:hover .del { opacity: 1; }
+  .float-add { display: flex; align-items: center; gap: 6px; padding: 7px 12px 5px; border-top: 1px solid #f1f1ee; margin-top: 4px; }
+  .float-add input {
+    flex: 1; height: 27px; border: 1px solid #ecece9; border-radius: 7px;
+    background: #fbfbf8; padding: 0 8px; font-family: inherit; font-size: 12px; color: var(--text); outline: none;
+  }
+  .float-add input::placeholder { color: #a4a9ad; }
+  .float-add input:focus { border-color: #c9ccce; background: #fff; }
+  .float-add .add {
+    width: 27px; height: 27px; border-radius: 7px; border: 1px solid var(--border);
+    background: var(--layer); color: var(--muted); cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .float-foot {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 5px 12px 8px; font-size: 10.5px; color: var(--faint);
+  }
+  .git-ok { display: inline-flex; align-items: center; gap: 4px; color: var(--green); }
+  .git-ok i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+  /* collapsed state: header strip only */
+  .float.collapsed { width: 340px; }
+  .float.collapsed .progress,
+  .float.collapsed .float-body,
+  .float.collapsed .float-add,
+  .float.collapsed .float-foot { display: none; }
+  .float.collapsed .float-head { height: 40px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-mark">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M4 15c4.5 0 6-9 10.5-9S20 12 20 15c-4.5 0-6 4-10.5 4S4 18 4 15Z" fill="currentColor"/></svg>
+      </span>
+      <span class="brand-name">deepseek</span>
+      <span class="brand-tag">HARNESS</span>
+    </div>
+    <div class="new-session">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.2"/><path d="M8 5.4v5.2M5.4 8h5.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+      新会话 <span class="kbd">Ctrl Alt N</span>
+    </div>
+    <div class="nav-row"><span class="nav-ico">◇</span>插件</div>
+    <div class="nav-row"><span class="nav-ico">◉</span>OpenCode Go</div>
+    <div class="nav-row"><span class="nav-ico">◷</span>自动化任务</div>
+    <div class="nav-row"><span class="nav-ico">⋯</span>更多</div>
+    <div class="section"><span>工作区</span><span class="section-actions">⌕ ⇅ ＋</span></div>
+    <div class="ws on">▤ dsharness</div>
+    <div class="session on"><span class="dot"></span>待办浮窗改造</div>
+    <div class="session"><span class="dot"></span>首页性能优化</div>
+    <div class="session"><span class="dot"></span>CSV 导出需求</div>
+    <div class="ws">▤ website-redesign</div>
+    <div class="ws">▤ data-pipeline</div>
+    <div class="spacer"></div>
+    <div class="nav-row"><span class="nav-ico">⚙</span>设置</div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <span class="session-title">待办浮窗改造</span>
+      <span class="caret">⌄</span>
+      <div class="top-actions">
+        <button class="icon-btn" title="会话历史">◷</button>
+        <button class="icon-btn" title="更多">⋯</button>
+      </div>
+    </header>
+
+    <div class="conversation">
+      <div class="thread">
+        <div class="msg user">
+          <div class="bubble">右侧的待办区域太大了，需要一个小的浮窗即可。另外，已经创建的会话也要能直接创建待办。</div>
+        </div>
+        <div class="msg assistant">
+          <div class="bubble">
+            <div class="lead">收到。入口常驻在输入框工具栏，浮窗固定在右下角、可拖动并记住位置；所有会话都能用，数据还是同一个 <code>.todo.md</code>。</div>
+            <div class="note">
+              <span class="note-ico">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="2.6" width="12" height="11" rx="2.4" stroke="currentColor" stroke-width="1.2"/><path d="M4.7 7.1 6 8.4 8.5 5.7M9.7 7.4h2.2M4.7 10.7 6 12l2.5-2.7M9.7 11h2.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
+              原型预览：点击输入框左侧的「待办」胶囊打开浮窗；右上角可发 AI 分析，也可最小化为一条标题栏。
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="composer-zone">
+      <div class="composer">
+        <div class="composer-input">继续完善浮窗的交互…</div>
+        <div class="composer-tools">
+          <button class="tool-btn" title="添加内容">＋</button>
+          <button class="todo-pill" id="pill" title="待办清单">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="2.4" width="12" height="11.2" rx="2.4" stroke="currentColor" stroke-width="1.3"/><path d="M4.8 7.1 6.1 8.4 8.6 5.7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.8 10.6h2.1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+            <span id="pillLabel">待办 1/3</span>
+          </button>
+          <button class="tool-btn" title="语音">◌</button>
+          <div class="grow"></div>
+          <span class="model">DeepSeek V4.1 Flash ⌄</span>
+          <button class="send" title="发送">↑</button>
+        </div>
+      </div>
+    </div>
+
+    <section class="float" id="float">
+      <header class="float-head">
+        <span class="drag-dots">⋮⋮</span>
+        <span class="float-icon">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><rect x="2" y="2.4" width="12" height="11.2" rx="2.4" stroke="currentColor" stroke-width="1.4"/><path d="M4.8 7.1 6.1 8.4 8.6 5.7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.8 10.6h2.1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        </span>
+        <span class="float-title">待办清单</span>
+        <span class="float-count">1/3</span>
+        <div class="grow"></div>
+        <button class="ai-btn" title="把清单发给当前 AI 分析">
+          <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 1.6v3.2M8 11.2v3.2M1.6 8h3.2M11.2 8h3.2M3.5 3.5l2.2 2.2M10.3 10.3l2.2 2.2M12.5 3.5l-2.2 2.2M5.7 10.3l-2.2 2.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+          AI 分析
+        </button>
+        <button class="icon-btn" id="minimize" title="最小化">–</button>
+        <button class="icon-btn" id="close" title="关闭">×</button>
+      </header>
+      <div class="progress"><i style="width:34%"></i></div>
+      <div class="float-body">
+        <div class="row done">
+          <span class="check">
+            <svg width="9" height="9" viewBox="0 0 12 12" fill="none"><path d="M2.2 6.3 4.7 8.8 9.8 3.3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          <span class="txt">设计浮窗原型</span>
+          <button class="del" title="删除">
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M3.2 4.4h9.6M6.2 4.4V3.2h3.6v1.2M4.4 4.4l.6 8.2h6l.6-8.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        <div class="row">
+          <span class="check"></span>
+          <span class="txt">实现常驻入口与浮窗</span>
+          <button class="del" title="删除">
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M3.2 4.4h9.6M6.2 4.4V3.2h3.6v1.2M4.4 4.4l.6 8.2h6l.6-8.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        <div class="row">
+          <span class="check"></span>
+          <span class="txt">发送清单给 AI 做需求分析</span>
+          <button class="del" title="删除">
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M3.2 4.4h9.6M6.2 4.4V3.2h3.6v1.2M4.4 4.4l.6 8.2h6l.6-8.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="float-add">
+        <input placeholder="添加待办，回车确认">
+        <button class="add" title="添加">＋</button>
+      </div>
+      <div class="float-foot">
+        <span>.todo.md</span>
+        <span class="git-ok"><i></i>已纳入 Git 追踪</span>
+      </div>
+    </section>
+  </main>
+</div>
+<script>
+  const state = new URLSearchParams(location.search).get('state') || 'open';
+  const widget = document.getElementById('float');
+  const pill = document.getElementById('pill');
+  if (state === 'collapsed') {
+    widget.classList.add('collapsed');
+    pill.classList.add('is-active');
+  } else if (state === 'hidden') {
+    widget.classList.add('is-hidden');
+  } else {
+    pill.classList.add('is-active');
+  }
+</script>
+</body>
+</html>
